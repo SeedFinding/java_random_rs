@@ -3,8 +3,8 @@ name = "java_random"
 version = "0.1.0"
 authors = ["Neil <neilhube12@gmail.com>"]
 edition = "2018"
-description="The java random module implementation in rust"
-categories=["PRNG","Random","Java"]
+description="The java LCG and random module implementation in rust"
+categories=["algorithms","data-structures"]
 license="MIT"
 
 [dependencies]
