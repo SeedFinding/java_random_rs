@@ -2,8 +2,8 @@ pub const JAVA_LCG: LCG = LCG { multiplier: 0x5DEECE66D, addend: 0xB };
 
 #[derive(Copy, Clone, Debug)]
 pub struct LCG {
-    multiplier: u64,
-    addend: u64,
+    pub multiplier: u64,
+    pub addend: u64,
 }
 
 // Constants used to reverse operations
