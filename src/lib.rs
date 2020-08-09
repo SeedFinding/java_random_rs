@@ -1,5 +1,4 @@
 pub const JAVA_LCG: LCG = LCG { multiplier: 0x5DEECE66D, addend: 0xB };
-pub const END_LCG: LCG = LCG { multiplier: 257489430523441, addend: 184379205320524 };
 
 #[derive(Copy, Clone, Debug)]
 pub struct LCG {
@@ -47,7 +46,9 @@ impl Random {
         r.set_raw_seed(s);
         r
     }
-
+    pub fn default_scramble(s: u64) -> u64 {
+        s ^ JAVA_LCG.multiplier
+    }
     pub fn set_seed(&mut self, s: u64) {
         self.seed = s ^ self.lcg.multiplier;
     }
