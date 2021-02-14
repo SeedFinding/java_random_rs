@@ -18,6 +18,27 @@ pub const fn mask(n: u8) -> u64 {
     (1 << n) - 1
 }
 
+
+#[cfg(test)]
+mod lcg_test {
+    use crate::{Random, JAVA_LCG};
+
+    #[test]
+    fn test_init() {
+        let random: Random = Random::with_seed(12);
+        assert_eq!(random.get_raw_seed(), 12 ^ JAVA_LCG.multiplier);
+        assert_eq!(random.get_seed(), 12);
+    }
+
+    #[test]
+    fn test_raw_init() {
+        let random: Random = Random::with_raw_seed(12);
+        assert_eq!(random.get_seed(), 12 ^ JAVA_LCG.multiplier);
+        assert_eq!(random.get_raw_seed(), 12);
+    }
+}
+
+
 #[derive(Copy, Clone, Debug)]
 pub struct Random {
     seed: u64,
@@ -68,6 +89,12 @@ impl Random {
     pub fn next_state(&mut self) -> Random {
         self.seed = self.seed.wrapping_mul(self.lcg.multiplier).wrapping_add(self.lcg.addend);
         *self
+    }
+
+    pub fn skip(&mut self, mut skip_random: Random) {
+        skip_random.set_seed(self.seed & mask(48));
+        skip_random.next(1);
+        self.set_raw_seed(skip_random.get_raw_seed());
     }
 
     pub fn next(&mut self, bits: u8) -> i32 {
@@ -136,3 +163,4 @@ impl Random {
         (s.wrapping_sub(JAVA_LCG.addend)).wrapping_mul(lcg_const_extra::INV_A) & mask(48)
     }
 }
+
