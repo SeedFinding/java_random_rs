@@ -6,6 +6,39 @@ pub struct LCG {
     pub addend: u64,
 }
 
+impl LCG {
+    pub fn modulo(&self, n: u64) -> u64 {
+        n & mask(48)
+    }
+
+    pub fn combine(&self, steps: u64) -> LCG {
+        let mut multiplier: u64 = 1u64;
+        let mut addend: u64 = 0u64;
+        let mut intermediate_multiplier = self.multiplier;
+        let mut intermediate_addend = self.addend;
+        let mut k: u64 = steps;
+        while k != 0 {
+            if (k & 1) != 0 {
+                multiplier = multiplier.wrapping_mul(intermediate_multiplier);
+                addend = intermediate_multiplier.wrapping_mul(addend).wrapping_add(intermediate_addend);
+            }
+
+            intermediate_addend = (intermediate_multiplier.wrapping_add(1)).wrapping_mul(intermediate_addend);
+            intermediate_multiplier = intermediate_multiplier.wrapping_mul(intermediate_multiplier);
+            k >>= 1;
+        }
+
+        return LCG { multiplier: self.modulo(multiplier ), addend: self.modulo(addend) };
+    }
+
+    pub fn combine_with_lcg(&self, lcg: LCG) -> LCG {
+        return LCG {
+            multiplier: self.multiplier * lcg.multiplier,
+            addend: self.addend * lcg.multiplier + lcg.addend,
+        };
+    }
+}
+
 // Constants used to reverse operations
 pub mod lcg_const_extra {
     pub const INV_A: u64 = 0xdfe05bcb1365;
@@ -21,7 +54,7 @@ pub const fn mask(n: u8) -> u64 {
 
 #[cfg(test)]
 mod lcg_test {
-    use crate::{Random, JAVA_LCG};
+    use crate::{Random, JAVA_LCG, LCG};
 
     #[test]
     fn test_init() {
@@ -35,6 +68,46 @@ mod lcg_test {
         let random: Random = Random::with_raw_seed(12);
         assert_eq!(random.get_seed(), 12 ^ JAVA_LCG.multiplier);
         assert_eq!(random.get_raw_seed(), 12);
+    }
+
+    #[test]
+    fn test_skip() {
+        let mut random: Random = Random::with_raw_seed(12);
+        let mut random2: Random = Random::with_raw_seed(12);
+        let skip_random: Random = Random::with_seed_and_lcg(0, LCG { multiplier: 25214903917, addend: 11 });
+        random.skip(skip_random);
+        random2.next_state();
+        assert_eq!(random.get_seed(), random2.get_seed())
+    }
+
+    #[test]
+    fn test_skip_large() {
+        let mut random: Random = Random::with_raw_seed(12);
+        let mut random2: Random = Random::with_raw_seed(12);
+        let skip_random: Random = Random::with_seed_and_lcg(0, LCG { multiplier: 56259567741473, addend: 137246343697672 });
+        random.skip(skip_random);
+        random2.next_state_n(1101000);
+        assert_eq!(random.get_seed(), random2.get_seed())
+    }
+
+    #[test]
+    fn test_advance() {
+        let mut random: Random = Random::with_raw_seed(12);
+        let mut random2: Random = Random::with_raw_seed(12);
+        random.advance(LCG { multiplier: 56259567741473, addend: 137246343697672 });
+        random2.next_state_n(1101000);
+        assert_eq!(random.get_seed(), random2.get_seed())
+    }
+
+
+    #[test]
+    fn test_advance_combine() {
+        let mut random: Random = Random::with_raw_seed(12);
+        let mut random2: Random = Random::with_raw_seed(12);
+        dbg!(JAVA_LCG.combine(1101000));
+        random.advance(JAVA_LCG.combine(1101000));
+        random2.next_state_n(1101000);
+        assert_eq!(random.get_seed(), random2.get_seed())
     }
 }
 
@@ -86,15 +159,25 @@ impl Random {
         self.seed & mask(48)
     }
 
-    pub fn next_state(&mut self) -> Random {
-        self.seed = self.seed.wrapping_mul(self.lcg.multiplier).wrapping_add(self.lcg.addend);
+    pub fn advance(&mut self, lcg: LCG) -> Random {
+        self.seed = self.seed.wrapping_mul(lcg.multiplier).wrapping_add(lcg.addend);
         *self
     }
 
-    pub fn skip(&mut self, mut skip_random: Random) {
-        skip_random.set_seed(self.seed & mask(48));
-        skip_random.next(1);
-        self.set_raw_seed(skip_random.get_raw_seed());
+    pub fn next_state(&mut self) -> Random {
+        self.advance(self.lcg)
+    }
+
+    pub fn next_state_n(&mut self, n: u32) -> Random {
+        // please prefer generating another lcg
+        for _ in 0..n {
+            self.next_state();
+        }
+        *self
+    }
+
+    pub fn skip(&mut self, skip_random: Random) -> Random {
+        self.advance(skip_random.lcg)
     }
 
     pub fn next(&mut self, bits: u8) -> i32 {
