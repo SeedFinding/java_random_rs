@@ -7,15 +7,22 @@ pub struct LCG {
 }
 
 impl LCG {
-    pub fn modulo(&self, n: u64) -> u64 {
+    pub const fn modulo(n: u64) -> u64 {
         n & mask(48)
+    }
+    pub const fn combine_java(steps: u64) -> LCG {
+        Self::_combine(JAVA_LCG, steps)
     }
 
     pub fn combine(&self, steps: u64) -> LCG {
+        Self::_combine(*self, steps)
+    }
+
+    const fn _combine(lcg:LCG,steps:u64)->LCG{
         let mut multiplier: u64 = 1u64;
         let mut addend: u64 = 0u64;
-        let mut intermediate_multiplier = self.multiplier;
-        let mut intermediate_addend = self.addend;
+        let mut intermediate_multiplier = lcg.multiplier;
+        let mut intermediate_addend = lcg.addend;
         let mut k: u64 = steps;
         while k != 0 {
             if (k & 1) != 0 {
@@ -28,9 +35,8 @@ impl LCG {
             k >>= 1;
         }
 
-        return LCG { multiplier: self.modulo(multiplier ), addend: self.modulo(addend) };
+        return LCG { multiplier: Self::modulo(multiplier ), addend:  Self::modulo(addend) };
     }
-
     pub fn combine_with_lcg(&self, lcg: LCG) -> LCG {
         return LCG {
             multiplier: self.multiplier * lcg.multiplier,
