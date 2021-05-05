@@ -1,6 +1,6 @@
 [package]
 name = "java_random"
-version = "0.1.6"
+version = "0.1.7"
 authors = ["Neil <neilhube12@gmail.com>"]
 edition = "2018"
 description = "The java LCG and random module implementation in rust"
