@@ -10,7 +10,14 @@ impl LCG {
     pub const fn modulo(n: u64) -> u64 {
         n & mask(48)
     }
+
+    #[cfg(feature = "const_fn")]
     pub const fn combine_java(steps: u64) -> LCG {
+        Self::_combine(JAVA_LCG, steps)
+    }
+
+    #[cfg(not(feature = "const_fn"))]
+    pub fn combine_java(steps: u64) -> LCG {
         Self::_combine(JAVA_LCG, steps)
     }
 
@@ -18,7 +25,8 @@ impl LCG {
         Self::_combine(*self, steps)
     }
 
-    const fn _combine(lcg:LCG,steps:u64)->LCG{
+    #[cfg(feature = "const_fn")]
+    pub const fn _combine(lcg: LCG, steps: u64) -> LCG {
         let mut multiplier: u64 = 1u64;
         let mut addend: u64 = 0u64;
         let mut intermediate_multiplier = lcg.multiplier;
@@ -35,8 +43,30 @@ impl LCG {
             k >>= 1;
         }
 
-        return LCG { multiplier: Self::modulo(multiplier ), addend:  Self::modulo(addend) };
+        return LCG { multiplier: Self::modulo(multiplier), addend: Self::modulo(addend) };
     }
+
+    #[cfg(not(feature = "const_fn"))]
+    pub fn _combine(lcg: LCG, steps: u64) -> LCG {
+        let mut multiplier: u64 = 1u64;
+        let mut addend: u64 = 0u64;
+        let mut intermediate_multiplier = lcg.multiplier;
+        let mut intermediate_addend = lcg.addend;
+        let mut k: u64 = steps;
+        while k != 0 {
+            if (k & 1) != 0 {
+                multiplier = multiplier.wrapping_mul(intermediate_multiplier);
+                addend = intermediate_multiplier.wrapping_mul(addend).wrapping_add(intermediate_addend);
+            }
+
+            intermediate_addend = (intermediate_multiplier.wrapping_add(1)).wrapping_mul(intermediate_addend);
+            intermediate_multiplier = intermediate_multiplier.wrapping_mul(intermediate_multiplier);
+            k >>= 1;
+        }
+
+        return LCG { multiplier: Self::modulo(multiplier), addend: Self::modulo(addend) };
+    }
+
     pub fn combine_with_lcg(&self, lcg: LCG) -> LCG {
         return LCG {
             multiplier: self.multiplier * lcg.multiplier,
@@ -45,7 +75,7 @@ impl LCG {
     }
 }
 
-// Constants used to reverse operations
+/// Constants used to reverse operations
 pub mod lcg_const_extra {
     pub const INV_A: u64 = 0xdfe05bcb1365;
     pub const INV_A_1: u64 = 18698324575379;
@@ -56,67 +86,6 @@ pub mod lcg_const_extra {
 pub const fn mask(n: u8) -> u64 {
     (1 << n) - 1
 }
-
-
-#[cfg(test)]
-mod lcg_test {
-    use crate::{Random, JAVA_LCG, LCG};
-
-    #[test]
-    fn test_init() {
-        let random: Random = Random::with_seed(12);
-        assert_eq!(random.get_raw_seed(), 12 ^ JAVA_LCG.multiplier);
-        assert_eq!(random.get_seed(), 12);
-    }
-
-    #[test]
-    fn test_raw_init() {
-        let random: Random = Random::with_raw_seed(12);
-        assert_eq!(random.get_seed(), 12 ^ JAVA_LCG.multiplier);
-        assert_eq!(random.get_raw_seed(), 12);
-    }
-
-    #[test]
-    fn test_skip() {
-        let mut random: Random = Random::with_raw_seed(12);
-        let mut random2: Random = Random::with_raw_seed(12);
-        let skip_random: Random = Random::with_seed_and_lcg(0, LCG { multiplier: 25214903917, addend: 11 });
-        random.skip(skip_random);
-        random2.next_state();
-        assert_eq!(random.get_seed(), random2.get_seed())
-    }
-
-    #[test]
-    fn test_skip_large() {
-        let mut random: Random = Random::with_raw_seed(12);
-        let mut random2: Random = Random::with_raw_seed(12);
-        let skip_random: Random = Random::with_seed_and_lcg(0, LCG { multiplier: 56259567741473, addend: 137246343697672 });
-        random.skip(skip_random);
-        random2.next_state_n(1101000);
-        assert_eq!(random.get_seed(), random2.get_seed())
-    }
-
-    #[test]
-    fn test_advance() {
-        let mut random: Random = Random::with_raw_seed(12);
-        let mut random2: Random = Random::with_raw_seed(12);
-        random.advance(LCG { multiplier: 56259567741473, addend: 137246343697672 });
-        random2.next_state_n(1101000);
-        assert_eq!(random.get_seed(), random2.get_seed())
-    }
-
-
-    #[test]
-    fn test_advance_combine() {
-        let mut random: Random = Random::with_raw_seed(12);
-        let mut random2: Random = Random::with_raw_seed(12);
-        dbg!(JAVA_LCG.combine(1101000));
-        random.advance(JAVA_LCG.combine(1101000));
-        random2.next_state_n(1101000);
-        assert_eq!(random.get_seed(), random2.get_seed())
-    }
-}
-
 
 #[derive(Copy, Clone, Debug)]
 pub struct Random {
@@ -191,7 +160,7 @@ impl Random {
         ((self.seed & mask(48)) >> (48 - bits)) as i32
     }
 
-    // Returns the same as the last call to next
+    /// Returns the same as the last call to next
     pub fn last_next(&self, bits: u8) -> i32 {
         ((self.seed & mask(48)) >> (48 - bits)) as i32
     }
@@ -253,3 +222,62 @@ impl Random {
     }
 }
 
+
+#[cfg(test)]
+mod lcg_test {
+    use crate::{Random, JAVA_LCG, LCG};
+
+    #[test]
+    fn test_init() {
+        let random: Random = Random::with_seed(12);
+        assert_eq!(random.get_raw_seed(), 12 ^ JAVA_LCG.multiplier);
+        assert_eq!(random.get_seed(), 12);
+    }
+
+    #[test]
+    fn test_raw_init() {
+        let random: Random = Random::with_raw_seed(12);
+        assert_eq!(random.get_seed(), 12 ^ JAVA_LCG.multiplier);
+        assert_eq!(random.get_raw_seed(), 12);
+    }
+
+    #[test]
+    fn test_skip() {
+        let mut random: Random = Random::with_raw_seed(12);
+        let mut random2: Random = Random::with_raw_seed(12);
+        let skip_random: Random = Random::with_seed_and_lcg(0, LCG { multiplier: 25214903917, addend: 11 });
+        random.skip(skip_random);
+        random2.next_state();
+        assert_eq!(random.get_seed(), random2.get_seed())
+    }
+
+    #[test]
+    fn test_skip_large() {
+        let mut random: Random = Random::with_raw_seed(12);
+        let mut random2: Random = Random::with_raw_seed(12);
+        let skip_random: Random = Random::with_seed_and_lcg(0, LCG { multiplier: 56259567741473, addend: 137246343697672 });
+        random.skip(skip_random);
+        random2.next_state_n(1101000);
+        assert_eq!(random.get_seed(), random2.get_seed())
+    }
+
+    #[test]
+    fn test_advance() {
+        let mut random: Random = Random::with_raw_seed(12);
+        let mut random2: Random = Random::with_raw_seed(12);
+        random.advance(LCG { multiplier: 56259567741473, addend: 137246343697672 });
+        random2.next_state_n(1101000);
+        assert_eq!(random.get_seed(), random2.get_seed())
+    }
+
+
+    #[test]
+    fn test_advance_combine() {
+        let mut random: Random = Random::with_raw_seed(12);
+        let mut random2: Random = Random::with_raw_seed(12);
+        dbg!(JAVA_LCG.combine(1101000));
+        random.advance(JAVA_LCG.combine(1101000));
+        random2.next_state_n(1101000);
+        assert_eq!(random.get_seed(), random2.get_seed())
+    }
+}
